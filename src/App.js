@@ -160,7 +160,7 @@ function App() {
     <div onKeyDown={keyDown} className="min-h-screen bg-slate-900 py-6 flex flex-col justify-center relative overflow-hidden sm:py-12">
       <div className="relative px-1 pt-1 pb-1 bg-slate-800 shadow-xl ring-1 ring-gray-900/5 sm:max-w-lg sm:mx-auto sm:rounded-lg sm:px-1">
         <div className="grid grid-cols-4 grid-rows-6 m-3">
-          <input type='text' pattern='[0-9-]*' value={displayValue} placeholder='0' onInput={(event) => inputChange(event.target.value)} className="text-2xl col-span-4 justify-self-center self-center focus:outline-none appearance-none w-full leading-6 text-slate-900 placeholder-slate-400 py-3 px-5 text-right border-solid border-2 border-slate-800"></input>
+          <input type='text' pattern='[0-9-]*' value={displayValue} placeholder='0' onInput={(event) => inputChange(event.target.value)} className="truncate text-2xl col-span-4 justify-self-center self-center focus:outline-none appearance-none w-full leading-6 text-slate-900 placeholder-slate-400 py-3 px-5 text-right border-solid border-2 border-slate-800"></input>
           <Button onClick={clear} theme='util' text={clearText} />
           <Button onClick={toggleSign} theme='util' text='+/-' />
           <Button onClick={percent} theme='util' text='%' />

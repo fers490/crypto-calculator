@@ -5,68 +5,182 @@ import { useProvider, useContract } from './hooks/web3'
 
 import Calculator from './artifacts/contracts/Calculator.sol/Calculator.json';
 
-import { add as addFn, sub as subFn, mul as mulFn, div as divFn } from './util/calculator'
+import { add, sub, mul, div } from './util/calculator'
+import Button from './components/Button';
 
-const contractAddr = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512'
+const contractAddr = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
 
 function App() {
-  const [a, setA] = useState(0);
-  const [b, setB] = useState(0);
-  const [result, setResult] = useState(0);
+  const [memory, setMemory] = useState('');
+  // When true, next input whill replace the entire displayed value
+  const [freshDisplay, setFreshDisplay] = useState(true);
+  const [displayValue, setDisplayValue] = useState('0');
+  const [activeOperation, setActiveOperation] = useState('');
+  const clearText = displayValue === '0' ? 'AC' : 'C';
+  const decimalSymbol = '.'
 
   const provider = useProvider(window.ethereum);
   const signer = provider.getSigner();
   const contract = useContract(contractAddr, Calculator.abi, signer);
 
+  const operationMap = {
+    'add': add,
+    'sub': sub,
+    'mul': mul,
+    'div': div
+  }
+
+  const keyDownMap = {
+    '0': () => appendNumber('0'),
+    '1': () => appendNumber('1'),
+    '2': () => appendNumber('2'),
+    '3': () => appendNumber('3'),
+    '4': () => appendNumber('4'),
+    '5': () => appendNumber('5'),
+    '6': () => appendNumber('6'),
+    '7': () => appendNumber('7'),
+    '8': () => appendNumber('8'),
+    '9': () => appendNumber('9'),
+    '.': appendDecimalSymbol,
+    '+': () => setOperation('add'),
+    '-': () => setOperation('sub'),
+    '*': () => setOperation('mul'),
+    '/': () => setOperation('div'),
+    '%': percent,
+    '=': compute,
+    'Enter': compute,
+    'c': clear,
+    'C': clear
+  }
+
   useEffect(() => {
+    document.title = "Calculator"
     window.ethereum.request({ method: 'eth_requestAccounts' });
-  });
+    document.addEventListener('keydown',keyDown);
+    return function cleanup() {
+      document.removeEventListener('keydown', keyDown);
+    }
+  }, [keyDown]);
 
-  async function add() {
-    const result = await addFn(a, b, contract);
-    setResult(result);
+  function setOperation(operation) {
+    setMemory(displayValue)
+    setDisplayValue('0')
+    setActiveOperation(operation)
   }
 
-  async function sub() {
-    const result = await subFn(a, b, contract);
-    setResult(result);
+  async function percent() {
+    const result = await operationMap['div'](displayValue, 100, contract)
+    setDisplayValue(result);
+    setFreshDisplay(true);
   }
 
-  async function mul() {
-    const result = await mulFn(a, b, contract);
-    setResult(result);
+  // Might be replaced with a better solution using built-in number support instead of regexp
+  function inputChange(v) {
+    if (/^-?(\d*)(\.\d*)?$/.test(v)) {
+      setDisplayValue(stripLeadingZeros(v))
+      setFreshDisplay(false);
+    }
   }
 
-  async function div() {
-    try {
-      const result = await divFn(a, b, contract);
-      setResult(result);
-    } catch (ex) {
-      console.log(ex)
+  // Might be replaced with a better solution using built-in number support instead of regexp
+  function stripLeadingZeros(v) {
+    return v.replace(/^(-?)(0+)([1-9])/, '$1$3').replace(/^(-?)(0*)($|\.)/,'$10$3')
+  }
+
+  function appendNumber(number) {
+    if (freshDisplay) {
+      inputChange(number)
+    } else {
+      inputChange(displayValue+number)
+    }
+  }
+
+  function appendDecimalSymbol() {
+    if (freshDisplay) {
+      inputChange(decimalSymbol)
+    } else {
+      inputChange(displayValue+decimalSymbol)
+    }
+  }
+
+  function clear() {
+    if (displayValue === '0') {
+      allClear()
+    } else {
+      clearEntry()
+    }
+  }
+
+  function allClear() {
+    setMemory('0')
+    setActiveOperation('')
+  }
+
+  function clearEntry() {
+    inputChange('0')
+  }
+
+  function setError() {
+    setDisplayValue('Error')
+    setFreshDisplay(true)
+    allClear()
+  }
+
+  function toggleSign() {
+    if (displayValue.startsWith('-')) {
+      inputChange(displayValue.substring(1))
+    } else {
+      inputChange('-'+displayValue)
+    }
+  }
+
+  async function compute() {
+    if (activeOperation !== '') {
+      try {
+        const result = await operationMap[activeOperation](memory, displayValue, contract)
+        setDisplayValue(result);
+        setActiveOperation('');
+        setMemory('');
+        setFreshDisplay(true);
+      } catch (ex) {
+        console.log(ex)
+        setError()
+      }
+    }
+  }
+
+  function keyDown(e) {
+    if (keyDownMap[e.key]) {
+      keyDownMap[e.key]();
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-800 text-white py-6 px-4 sm:p-6 md:py-10 md:px-8">
-      <div className="grid grid-cols-5 grid-rows-5 gap-5 m-5">
-        <h1 className='leading-3 col-span-5 self-center justify-self-center text-2xl font-semibold'>Calculator</h1>
-        {/* <span className="flex font-sans items-center justify-between"> */}
-          <label className='justify-self-start self-center'>A</label><input type='number' value={a} placeholder='First operator' onChange={(event) => setA(event.target.value)} className="col-span-4 justify-self-center self-center focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none w-full text-sm leading-6 text-slate-900 placeholder-slate-400 rounded-md py-2 pl-10 ring-1 ring-slate-200 shadow-sm"></input>
-        {/* </span> */}
-        {/* <span className="flex font-sans items-center justify-between"> */}
-          <label className='justify-self-start self-center'>B</label><input type='number' value={b} placeholder='First operator' onChange={(event) => setB(event.target.value)} className="col-span-4 justify-self-center self-center focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none w-full text-sm leading-6 text-slate-900 placeholder-slate-400 rounded-md py-2 pl-10 ring-1 ring-slate-200 shadow-sm"></input>
-        {/* </span> */}
-        {/* <span className="flex font-sans items-stretch justify-stretch"> */}
-        <span></span>
-          <button onClick={add} className="text-2xl hover:bg-blue-400 rounded-md bg-blue-500 text-white font-bold pl-2 pr-3 py-2 shadow-sm">+</button>
-          <button onClick={sub} className="text-2xl hover:bg-blue-400 rounded-md bg-blue-500 text-white font-bold pl-2 pr-3 py-2 shadow-sm">-</button>
-          <button onClick={mul} className="text-2xl hover:bg-blue-400 rounded-md bg-blue-500 text-white font-bold pl-2 pr-3 py-2 shadow-sm">*</button>
-          <button onClick={div} className="text-2xl hover:bg-blue-400 rounded-md bg-blue-500 text-white font-bold pl-2 pr-3 py-2 shadow-sm">/</button>
-        {/* </span> */}
-        {/* <span className="flex font-sans items-center justify-between"> */}
-          <label className='justify-self-start self-center'>Result</label><input type='number' value={result} placeholder='Result' readOnly className="col-span-4 justify-self-center self-center focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none w-full text-sm leading-6 text-slate-900 placeholder-slate-400 rounded-md py-2 pl-10 ring-1 ring-slate-200 shadow-sm"></input>
-        {/* </span> */}
-        
+
+    <div onKeyDown={keyDown} className="min-h-screen bg-slate-900 py-6 flex flex-col justify-center relative overflow-hidden sm:py-12">
+      <div className="relative px-1 pt-1 pb-1 bg-slate-800 shadow-xl ring-1 ring-gray-900/5 sm:max-w-lg sm:mx-auto sm:rounded-lg sm:px-1">
+        <div className="grid grid-cols-4 grid-rows-6 m-3">
+          <input type='text' pattern='[0-9-]*' value={displayValue} placeholder='0' onInput={(event) => inputChange(event.target.value)} className="text-2xl col-span-4 justify-self-center self-center focus:outline-none appearance-none w-full leading-6 text-slate-900 placeholder-slate-400 py-3 px-5 text-right border-solid border-2 border-slate-800"></input>
+          <Button onClick={clear} theme='util' text={clearText} />
+          <Button onClick={toggleSign} theme='util' text='+/-' />
+          <Button onClick={percent} theme='util' text='%' />
+          <Button onClick={() => setOperation('div')} theme='operation' active={activeOperation === 'div'} text='÷' />
+          <Button onClick={() => appendNumber('1')} theme='number' text='1' />
+          <Button onClick={() => appendNumber('2')} theme='number' text='2' />
+          <Button onClick={() => appendNumber('3')} theme='number' text='3' />
+          <Button onClick={() => setOperation('mul')} theme='operation' active={activeOperation === 'mul'} text='×' />
+          <Button onClick={() => appendNumber('4')} theme='number' text='4' />
+          <Button onClick={() => appendNumber('5')} theme='number' text='5' />
+          <Button onClick={() => appendNumber('6')} theme='number' text='6' />
+          <Button onClick={() => setOperation('sub')} theme='operation' active={activeOperation === 'sub'} text='-' />
+          <Button onClick={() => appendNumber('1')} theme='number' text='1' />
+          <Button onClick={() => appendNumber('2')} theme='number' text='2' />
+          <Button onClick={() => appendNumber('3')} theme='number' text='3' />
+          <Button onClick={() => setOperation('add')} theme='operation' active={activeOperation === 'add'} text='+' />
+          <Button onClick={() => appendNumber('0')} theme='number' text='0' colspan={2} />
+          <Button onClick={appendDecimalSymbol} theme='number' text={decimalSymbol} />
+          <Button onClick={compute} theme='operation' text='=' />
+        </div>
       </div>
     </div>
   );
